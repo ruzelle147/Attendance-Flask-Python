@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Attendance</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+        }
+
+        .container { 
+            max-width: 1200px; 
+            margin: auto; 
+            display: flex;
+            flex-wrap: wrap; /* Makes it stack on small screens */
+            gap: 20px;
+        }
+
+        /* Left Column (Forms, Tables) */
+        .left-column {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 300px;
+        }
+
+        /* Right Column (QR Scanner) */
+        .right-column {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 300px;
+        }
+
+        /* Tables and Forms */
+        form, table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+    /* Input fields */
+        input { 
+            padding: 10px; 
+            margin: 5px; 
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* Buttons */
+        button { 
+            padding: 10px; 
+            box-sizing: border-box;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        .qr-img {
+            width: 100px;
+            height: 100px;
+        }
+
+        /* QR Scanner */
+        #reader {
+            width: 100%; /* Full width */
+            max-width: 400px; /* Adjust as needed */
+            height: 400px; /* Taller scanner */
+            border: 3px solid #000;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        #reader video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) { /* Tablets */
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .left-column, .right-column {
+                width: 100%;
+            }
+
+            #reader {
+                max-width: 600px;
+                height: 350px;
+            }
+         input,button{
+            width: 100%;
+         }
+        }
+
+        @media (max-width: 768px) { /* Phones */
+            body {
+                margin: 10px;
+            }
+
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .left-column, .right-column {
+                width: 100%;
+            }
+
+            #reader {
+                max-width: 100%;
+                height: 300px;
+            }
+            input,button{
+            width: 100%;
+         }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Left Column -->
+        <div class="left-column">
+            <!-- Employee Registration -->
+            <div>
+                <h2>Employee Registration</h2>
+                {% with messages = get_flashed_messages(with_categories=True) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <p class="{{ category }}">{{ message }}</p>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST">
+                    <input type="text" name="name" placeholder="Employee Name" required>
+                    <input type="text" name="position" placeholder="Position" required>
+                    <button type="submit">Register</button>
+                </form>
+            </div>
+
+            <!-- Employees & QR Codes -->
+            <div>
+                <h2>Employees & QR Codes</h2>
+                <table>
+                    <tr>
+                        <th>Name</th>
+                        <th>Position</th>
+                        <th>QR Code</th>
+                    </tr>
+                    {% for emp in employees %}
+                    <tr>
+                        <td>{{ emp.name }}</td>
+                        <td>{{ emp.position }}</td>
+                        <td><img class="qr-img" src="data:image/png;base64,{{ emp.qr_code }}"></td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <!-- Attendance Records -->
+            <div>
+                <h2>Attendance Records</h2>
+                <table>
+                    <tr>
+                        <th>Name</th>
+                        <th>Position</th>
+                        <th>Check-in Time</th>
+                    </tr>
+                    {% for att in attendance %}
+                    <tr>
+                        <td>{{ att.name }}</td>
+                        <td>{{ att.position }}</td>
+                        <td>
+                            {% if att.checkin_time %}
+                                {{ att.checkin_time.strftime('%Y-%m-%d %H:%M:%S') if att.checkin_time is not string else att.checkin_time }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
+        <!-- Right Column (QR Scanner) -->
+        <div class="right-column">
+            <div>
+                <h2>Scan QR Code to Check In</h2>
+                <div id="reader"></div>
+
+                <form id="checkin-form" action="/checkin" method="post">
+                    <input type="hidden" name="qr_code" id="qr_code">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function onScanSuccess(decodedText) {
+            document.getElementById("qr_code").value = decodedText;
+            document.getElementById("checkin-form").submit();
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+            fps: 10, 
+            qrbox: { width: 350, height: 350 } // Make QR box larger
+        });
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+
+</body>
+</html>
